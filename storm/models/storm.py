@@ -377,9 +377,18 @@ class STORM(ViT):
                             packed=False,
                             radius_clip=radius_clip,
                         )
-                        color, forward_flow, weights, depth = renderings.split(
-                            [self.gs_dim, 3, self.num_motion_tokens, 1], dim=-1
-                        )
+                        if self.num_motion_tokens > 0 and render_motion_seg:
+                            color, forward_flow, weights, depth = renderings.split(
+                                [self.gs_dim, 3, self.num_motion_tokens, 1], dim=-1
+                            )
+                        else:
+                            color, forward_flow, depth = renderings.split(
+                                [self.gs_dim, 3, 1], dim=-1
+                            )
+                            weights = torch.zeros(
+                                *color.shape[:-1], 0,
+                                device=color.device, dtype=color.dtype,
+                            )
                         rendered_colors.append(color)
                         rendered_alphas.append(alpha)
                         rendered_flow.append(forward_flow)

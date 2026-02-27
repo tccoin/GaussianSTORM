@@ -545,18 +545,26 @@ class WaymoProcessor:
                     + f"{str(frame_id).zfill(3)}_{str(cam_id)}.jpg"
                 )
                 image = Image.open(image_path).convert("RGB")
+                if image.size != (240, 110):
+                    image = image.resize((240, 110))
                 depth_flows_path = (
                     f"{scene_path}/depth_flows_{downsample_factor}/"
                     + f"{str(frame_id).zfill(3)}_{str(cam_id)}.npy"
                 )
                 ground_path = image_path.replace("images", "ground_label").replace("jpg", "png")
-                ground_mask = np.array(Image.open(ground_path))
+                ground_mask = Image.open(ground_path)
+                if ground_mask.size != (240, 110):
+                    ground_mask = ground_mask.resize((240, 110), Image.NEAREST)
+                ground_mask = np.array(ground_mask)
 
                 depth_flows = np.load(depth_flows_path)
                 depth_image = depth_flows[:, :, 0]
                 flow_image = depth_flows[:, :, 1:4]
                 depth_img = depth_visualizer(depth_image, depth_image > 0)
                 flow_img = scene_flow_to_rgb(flow_image, flow_max_radius=15)
+                if depth_img.shape[:2] != (110, 240):
+                    depth_img = np.array(Image.fromarray(depth_img).resize((240, 110)))
+                    flow_img = np.array(Image.fromarray(flow_img).resize((240, 110)))
 
                 img_array = np.array(image) / 255.0
                 # Prepare the ground mask and image for blending

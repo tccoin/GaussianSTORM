@@ -1,0 +1,9 @@
+[
+  {"id": 1, "task": "Verify waymo/raw tfrecord files", "status": "completed"},
+  {"id": 2, "task": "Setup directories", "status": "completed"},
+  {"id": 3, "task": "Run Preprocessing (Phase 5a)", "status": "in-progress"},
+  {"id": 4, "task": "Setup Symlinks (Phase 5b)", "status": "not-started"},
+  {"id": 5, "task": "Extract Sky Masks (Phase 5c)", "status": "not-started"},
+  {"id": 6, "task": "Setup Scene Lists", "status": "not-started"},
+  {"id": 7, "task": "Run Evaluation (Phase 6)", "status": "not-started"}
+]

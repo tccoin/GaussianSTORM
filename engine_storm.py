@@ -73,7 +73,7 @@ def evaluate(dataloader, model, args, name_str=None):
     printed = False
     pbar = tqdm(dataloader, desc="Evaluating")
     for data_dict in pbar:
-        input_dict, target_dict = prepare_inputs_and_targets(data_dict, device)
+        input_dict, target_dict = prepare_inputs_and_targets(data_dict, device, v=args.num_max_cameras)
         input_indices = input_dict["context_frame_idx"][0].cpu().numpy().tolist()
         input_indice_start = input_indices[0]
         input_indices = [idx - input_indice_start for idx in input_indices]
@@ -325,7 +325,7 @@ def evaluate_flow(dataloader, model, args, name_str=None):
     ) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     pbar = tqdm(dataloader, desc="Evaluating")
     for data_dict in pbar:
-        input_dict, target_dict = prepare_inputs_and_targets(data_dict, device)
+        input_dict, target_dict = prepare_inputs_and_targets(data_dict, device, v=args.num_max_cameras)
         pred_dict = model(input_dict)
         # evaluate on real target images:
         # b, t, v, c, h, w
