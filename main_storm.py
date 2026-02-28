@@ -346,8 +346,10 @@ def main(args):
                 if log_writer is not None and flow_eval_result is not None:
                     flow_eval_result = {f"eval/{k}": v for k, v in flow_eval_result.items()}
                     log_writer.update(flow_eval_result)
-        logger.info("Evaluation done, exiting.")
-        exit()
+        logger.info("Evaluation done.")
+        if not args.visualization_only:
+            logger.info("Exiting.")
+            exit()
 
     valid_slice_id = copy.deepcopy(vis_slice_id)
     if dataset_val is not None and valid_slice_id >= len(dataset_val):
@@ -384,7 +386,7 @@ def main(args):
         model.train()
         misc.adjust_learning_rate(optimizer, data_iter_step, args)
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            input_dict, target_dict = prepare_inputs_and_targets(data_dict, device)
+            input_dict, target_dict = prepare_inputs_and_targets(data_dict, device, v=args.num_max_cameras)
             pred_dict = model(input_dict)
             loss_dict = compute_loss(pred_dict, target_dict, args, rgb_and_lpips_loss)
 

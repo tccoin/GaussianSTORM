@@ -108,10 +108,9 @@ def get_sky_mask(dataloader: torch.utils.data.DataLoader,  depthv2: DepthAnythin
         for i in range(len(sky_masks)):
             mask = sky_masks[i]
             mask = (mask * 255).astype(np.uint8)
-            raise NotImplementedError("please specify the target path by yourself and comment this line")
             
             # e.g:
-            tgt_pth = paths[i].replace("images", "sky_masks_518")
+            tgt_pth = paths[i].replace("images", "sky_masks")
             tgt_pth = tgt_pth.replace("jpg", "png")
             
             # ensure directory exists and save mask

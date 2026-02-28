@@ -138,8 +138,8 @@ class STORMDataset(Dataset):
 
             # Get dynamic mask, this is for dynamic region evaluation.
             if dataset_name in ["waymo"] and self.load_dynamic_mask:
-                dynamic_path = img_path.replace("images_8", "dynamic_masks/all")
-                dynamic_path = dynamic_path.replace("images_4", "dynamic_masks/all")
+                dynamic_path = img_path.replace("images_8", "dynamic_masks")
+                dynamic_path = dynamic_path.replace("images_4", "dynamic_masks")
                 dynamic_path = dynamic_path.replace("jpg", "png")
                 if not os.path.exists(dynamic_path):
                     dynamic_path = dynamic_path.replace("STORM2", "STORM")
@@ -355,7 +355,7 @@ class STORMDataset(Dataset):
             )
             logger.info(e)
             try:
-                return self.__getitem__(index + 1, 0, return_all)
+                return self.__getitem__(index + 1)
             except Exception as e:
                 logger.info(e)
                 return self.__getitem__(index + 1)
