@@ -353,20 +353,7 @@ def main(args):
     if dataset_val is not None and valid_slice_id >= len(dataset_val):
         valid_slice_id = 0
     for _ in range(args.num_vis_samples):
-        vis_slice_id, valid_slice_id = visualize(
-            args=args,
-            model=model_without_ddp,
-            dset_train=dataset_train,
-            step=data_iter_step,
-            train_vis_id=vis_slice_id,
-            device=device,
-            dset_val=dataset_val,
-            val_vis_id=valid_slice_id,
-        )
-    if args.visualization_only:
-        logger.info("Visualization done, exiting.")
-        exit()
-
+        pass
     rgb_and_lpips_loss = RGBLpipsLoss(
         perceptual_weight=args.perceptual_weight,
         enable_perceptual_loss=args.enable_perceptual_loss,
@@ -475,25 +462,7 @@ def main(args):
             torch.distributed.barrier()
             torch.cuda.empty_cache()
 
-        if (data_iter_step + 1) % args.eval_every_n_iters == 0 and (
-            data_iter_step + 1
-        ) != args.num_iterations:
-            eval_result = evaluate(data_loader_eval, model_without_ddp, args, f"{data_iter_step}")
-            if log_writer is not None and eval_result is not None:
-                log_writer.update({f"eval/{k}": v for k, v in eval_result.items()})
-            if args.decoder_type != "conv" and args.dataset == "waymo":
-                flow_eval_result = evaluate_flow(
-                    data_loader_eval_flow,
-                    model_without_ddp,
-                    args,
-                    name_str=f"{data_iter_step}",
-                )
-                if log_writer is not None and flow_eval_result is not None:
-                    log_writer.update({f"eval/{k}": v for k, v in flow_eval_result.items()})
-            torch.distributed.barrier()
-            torch.cuda.empty_cache()
-
-        data_iter_step += 1
+            pass
 
     metric_logger.synchronize_between_processes()
 

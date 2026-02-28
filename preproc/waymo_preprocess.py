@@ -12,7 +12,7 @@ from waymo_open_dataset.utils.frame_utils import parse_range_image_and_camera_pr
 
 from storm.visualization.visualization_tools import depth_visualizer, scene_flow_to_rgb
 
-from .utils import track_parallel_progress
+from utils import track_parallel_progress
 
 ORIGINAL_SIZE = {
     "0": (1280, 1920),
@@ -577,15 +577,15 @@ class WaymoProcessor:
                 flow_img = np.array(flow_img)
                 if img_array.shape[0] != 160:
                     _img_array = np.zeros((160, 240, 3))
-                    _img_array[50:] = img_array
+                    import cv2; _img_array[50:] = np.array(Image.fromarray((img_array*255).astype(np.uint8)).resize((240, 110)))/255.0
                     img_array = _img_array
 
                     _depth_img = np.zeros((160, 240, 3))
-                    _depth_img[50:] = depth_img
+                    _depth_img[50:] = np.array(Image.fromarray(depth_img.astype(np.uint8)).resize((240, 110)))
                     depth_img = _depth_img
 
                     _flow_img = np.zeros((160, 240, 3))
-                    _flow_img[50:] = flow_img
+                    _flow_img[50:] = np.array(Image.fromarray(flow_img.astype(np.uint8)).resize((240, 110)))
                     flow_img = _flow_img
 
                 img_array = np.concatenate([img_array, depth_img, flow_img], axis=0)
