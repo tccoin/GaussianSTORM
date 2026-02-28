@@ -428,17 +428,17 @@ class STORM(ViT):
             if not self.training:
                 with torch.autocast("cuda", enabled=False):
                     rendered_color, rendered_alpha, _ = rasterization(
-                        means=means_batched.float(),
-                        quats=quats_batched.float(),
-                        scales=scales_batched.float(),
-                        opacities=opacities_batched.float(),
+                        means=means_batched.float().reshape(-1, 3),
+                        quats=quats_batched.float().reshape(-1, 4),
+                        scales=scales_batched.float().reshape(-1, 3),
+                        opacities=opacities_batched.float().reshape(-1),
                         colors=(
                             colors_batched[..., : -self.num_motion_tokens].float()
                             if self.num_motion_tokens > 0 and render_motion_seg
                             else colors_batched.float()
                         ),
-                        viewmats=viewmats_batched,
-                        Ks=Ks_batched,
+                        viewmats=viewmats_batched.reshape(-1, 4, 4),
+                        Ks=Ks_batched.reshape(-1, 3, 3),
                         width=tgt_w,
                         height=tgt_h,
                         render_mode="RGB+ED",
@@ -454,13 +454,13 @@ class STORM(ViT):
                         rendered_colors = colors_batched[..., -self.num_motion_tokens :]
                         for i in range(0, self.num_motion_tokens, chunksize):
                             weights, _, _ = rasterization(
-                                means=means_batched.float(),
-                                quats=quats_batched.float(),
-                                scales=scales_batched.float(),
-                                opacities=opacities_batched.float(),
+                                means=means_batched.float().reshape(-1, 3),
+                                quats=quats_batched.float().reshape(-1, 4),
+                                scales=scales_batched.float().reshape(-1, 3),
+                                opacities=opacities_batched.float().reshape(-1),
                                 colors=rendered_colors[..., i : i + chunksize],
-                                viewmats=viewmats_batched,
-                                Ks=Ks_batched,
+                                viewmats=viewmats_batched.reshape(-1, 4, 4),
+                                Ks=Ks_batched.reshape(-1, 3, 3),
                                 width=tgt_w,
                                 height=tgt_h,
                                 render_mode="RGB+ED",
@@ -478,13 +478,13 @@ class STORM(ViT):
             else:
                 with torch.autocast("cuda", enabled=False):
                     rendered_color, rendered_alpha, _ = rasterization(
-                        means=means_batched.float(),
-                        quats=quats_batched.float(),
-                        scales=scales_batched.float(),
-                        opacities=opacities_batched.float(),
-                        colors=colors_batched.float(),
-                        viewmats=viewmats_batched,
-                        Ks=Ks_batched,
+                        means=means_batched.float().reshape(-1, 3),
+                        quats=quats_batched.float().reshape(-1, 4),
+                        scales=scales_batched.float().reshape(-1, 3),
+                        opacities=opacities_batched.float().reshape(-1),
+                        colors=colors_batched.float().reshape(-1, colors_batched.shape[-1]),
+                        viewmats=viewmats_batched.reshape(-1, 4, 4),
+                        Ks=Ks_batched.reshape(-1, 3, 3),
                         width=tgt_w,
                         height=tgt_h,
                         render_mode="RGB+ED",
