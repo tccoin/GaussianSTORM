@@ -6,17 +6,21 @@ from typing import List
 
 
 def download_file(filename, target_dir, source):
-    result = subprocess.run(
-        [
-            "gsutil",
-            "cp",
-            "-n",
-            f"{source}/{filename}.tfrecord",
-            target_dir,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    if not os.path.exists(f"{target_dir}/{filename}.tfrecord"):
+        result = subprocess.run(
+            [
+                "gsutil",
+                "cp",
+                "-n",
+                f"{source}/{filename}.tfrecord",
+                target_dir,
+            ],
+            capture_output=True,
+            text=True,
+        )
+    else:
+        print(f"File {filename}.tfrecord already exists in {target_dir}")
+        return
 
     if result.returncode != 0:
         raise Exception(result.stderr)
@@ -64,7 +68,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--split_file",
         type=str,
-        default="data/dataset_scene_list/waymo_train_list.txt",
+        default="data/dataset_scene_list/waymo_training_list.txt",
         help="",
     )
     parser.add_argument(

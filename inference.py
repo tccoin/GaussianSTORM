@@ -62,6 +62,7 @@ def get_args_parser():
     parser.add_argument("--load_flow", action="store_true")
     parser.add_argument("--dataset", default="waymo", type=str, choices=DATASET_DICT.keys())
     parser.add_argument("--skip_sky_mask", action="store_true", help="skip sky mask loading")
+    parser.add_argument("--scene_list_file", type=str, default=None)
     # ============= Logging ============= #
     parser.add_argument("--output_dir", default="./work_dirs")
     parser.add_argument("--num_vis_samples", type=int, default=1)
@@ -100,20 +101,8 @@ def main(args):
     with open(os.path.join(log_dir, "args.json"), "w") as f:
         json.dump(args.__dict__, f, indent=4)
     dataset_meta = DATASET_DICT[args.dataset]
-    train_annotation = dataset_meta["annotation_txt_file_train"]
-    val_annotation = dataset_meta["annotation_txt_file_val"]
-    if train_annotation is not None:
-        if args.dataset == "nuscenes":
-            train_annotation = f"data/dataset_scene_list/nuscenes_train.txt"
-        else:
-            train_annotation = f"{args.data_root}/{train_annotation}"
-    if val_annotation is not None:
-        if args.dataset == "nuscenes":
-            val_annotation = f"data/dataset_scene_list/nuscenes_val.txt"
-        else:
-            val_annotation = f"{args.data_root}/{val_annotation}"
-        if not os.path.exists(val_annotation):
-            val_annotation = None
+    train_annotation = args.scene_list_file
+
     num_context_timesteps = dataset_meta["num_context_timesteps"]
     num_target_timesteps = dataset_meta["num_target_timesteps"]
     if args.overwrite_train_ctx_view_with is not None:

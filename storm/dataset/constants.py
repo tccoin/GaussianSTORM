@@ -21,8 +21,8 @@ DATASET_DICT = {
         "temporal": True,
         "num_context_timesteps": 4,
         "num_target_timesteps": 4,
-        "annotation_txt_file_train": "scene_list/waymo_train.txt",
-        "annotation_txt_file_val": "scene_list/waymo_val.txt",
+        "annotation_txt_file_train": "scene_list/waymo_training_list.txt",
+        "annotation_txt_file_val": "scene_list/waymo_validation_list.txt",
         "camera_list": {
             1: ["0"],
             3: ["1", "0", "2"],

@@ -109,7 +109,7 @@ class STORMDataset(Dataset):
                 img_relative_path = img_relative_path.replace("samples", f"samples_4")
 
             # Get RGB
-            img_path = os.path.join(self.data_root, "datasets", dataset_name, img_relative_path)
+            img_path = os.path.join(self.data_root, img_relative_path)
             img = Image.open(img_path).convert("RGB")
             img = self.img_transformation(img)
             images.append(img)
@@ -458,7 +458,7 @@ class SingleSequenceDataset(Dataset):
         for annotation_txt_file in annotation_txt_file_list:
             with open(annotation_txt_file, "r") as f:
                 scene_list += f.readlines()
-        annotation_paths = [line.strip() for line in scene_list]
+        annotation_paths = [line.strip()+".json" for line in scene_list]
         if subset_indices is not None:
             annotation_paths = [annotation_paths[i] for i in subset_indices]
         self.annotations = []
@@ -511,7 +511,7 @@ class SingleSequenceDataset(Dataset):
                     img_relative_path = img_relative_path.replace("samples", f"samples_4")
 
             # Get RGB
-            img_path = os.path.join(self.data_root, "datasets", dataset_name, img_relative_path)
+            img_path = os.path.join(self.data_root, img_relative_path)
             img = Image.open(img_path).convert("RGB")
             img = self.img_transformation(img)
             images.append(img)
@@ -523,15 +523,14 @@ class SingleSequenceDataset(Dataset):
                     sky_path = img_path.replace("samples", "samples_sky_mask")
                     sky_path = sky_path.replace("sweeps", "sweeps_sky_mask")
                 elif dataset_name == "waymo":
-                    sky_path = img_path.replace("images", "sky_masks")
+                    if self.load_scale == "4":
+                        sky_path = img_path.replace("images_4", "sky_masks")
+                    else:
+                        sky_path = img_path.replace("images", "sky_masks")
                 elif dataset_name == "argoverse2":
                     sky_path = img_path.replace("images_4", "sky_masks_512")
                 sky_path = sky_path.replace("jpg", "png")
-                try:
-                    new_sky_path = sky_path.replace("STORM2", "STORM_masks")
-                    sky = Image.open(new_sky_path).convert("L").resize(self.target_size[::-1])
-                except FileNotFoundError:
-                    sky = Image.open(sky_path).convert("L").resize(self.target_size[::-1])
+                sky = Image.open(sky_path).convert("L").resize(self.target_size[::-1])
                 sky = to_tensor(np.array(sky) > 0).float()
                 sky_masks.append(sky)
 
