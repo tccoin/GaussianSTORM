@@ -1,5 +1,4 @@
-data/
-data
+data/datasets
 work_dirs/
 local_scripts/
 sync_files.sh
