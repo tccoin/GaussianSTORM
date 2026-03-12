@@ -43,14 +43,16 @@ def make_video(
     input_dict=None,
     target_dict=None,
     pred_dict=None,
+    fps=10,
 ):
 
-    if data_dict is None:
-        if scene_id is None:
-            scene_id = np.random.randint(0, len(dataset))
-        data_dict = dataset.__getitem__(scene_id, np.random.randint(10, 100), return_all=True)
-        data_dict = to_batch_tensor(data_dict)
-    input_dict, target_dict = prepare_inputs_and_targets(data_dict, device)
+    if input_dict is None:
+        if data_dict is None:
+            if scene_id is None:
+                scene_id = np.random.randint(0, len(dataset))
+            data_dict = dataset.__getitem__(scene_id, np.random.randint(10, 100), return_all=True)
+            data_dict = to_batch_tensor(data_dict)
+        input_dict, target_dict = prepare_inputs_and_targets(data_dict, device)
     model = model.eval()
 
     if pred_dict is None:
@@ -346,7 +348,7 @@ def make_video(
         video_frames.append(prep_image(frame))
     video_frame_reversed = video_frames[::-1][1:-1]
     video_frames.extend(video_frame_reversed)
-    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"])
+    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"] if data_dict is not None else fps)
 
 
 @torch.no_grad()
@@ -619,7 +621,7 @@ def make_video_vis(
         video_frames.append(prep_image(frame))
     video_frame_reversed = video_frames[::-1][1:-1]
     video_frames.extend(video_frame_reversed)
-    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"])
+    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"] if data_dict is not None else fps)
 
 
 @torch.no_grad()
@@ -996,5 +998,5 @@ def make_video_av2(
         video_frames.append(prep_image(frame))
     video_frame_reversed = video_frames[::-1][1:-1]
     video_frames.extend(video_frame_reversed)
-    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"])
+    imageio.mimsave(output_filename, video_frames, fps=data_dict["fps"] if data_dict is not None else fps)
     return output_filename
