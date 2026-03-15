@@ -14,7 +14,10 @@ import torch.utils.data
 
 import storm.models as models
 import storm.utils.misc as misc
-from storm.dataset.constants import DATASET_DICT
+import imageio
+from PIL import Image
+
+from storm.dataset.constants import DATASET_DICT, MEAN, STD
 from storm.dataset.data_utils import prepare_inputs_and_targets, to_batch_tensor
 from storm.dataset.storm_dataset import SingleSequenceDataset
 from storm.utils.logging import setup_logging
@@ -62,6 +65,70 @@ def elevate_camtoworlds(camtoworlds, height=2.0, tilt_deg=15.0):
     elevated[..., 2, 3] += height   # translate up in world Z (FLU up)
     elevated = elevated @ Ry         # tilt nose down in local frame
     return elevated
+
+
+def _clone_render_dict(data_dict):
+    out = {}
+    for k, v in data_dict.items():
+        if isinstance(v, torch.Tensor):
+            out[k] = v.clone()
+        else:
+            out[k] = copy.deepcopy(v)
+    return out
+
+
+def _build_fullres_render_dict(input_dict, scene_json, num_max_cams, device):
+    camera_list = DATASET_DICT[scene_json["dataset"]]["camera_list"][num_max_cams]
+    sizes = [tuple(scene_json["original_image_size"][cam]) for cam in camera_list]
+    full_h, full_w = sizes[0]
+    if any(size != (full_h, full_w) for size in sizes):
+        raise ValueError(f"Selected cameras do not share one full resolution: {sizes}")
+
+    full_target_intrinsics = torch.zeros_like(input_dict["target_intrinsics"])
+    for v, cam in enumerate(camera_list):
+        fx_n, fy_n, cx_n, cy_n = scene_json["normalized_intrinsics"][cam]
+        K = torch.tensor(
+            [[fx_n * full_w, 0.0, cx_n * full_w],
+             [0.0, fy_n * full_h, cy_n * full_h],
+             [0.0, 0.0, 1.0]],
+            dtype=input_dict["target_intrinsics"].dtype,
+            device=device,
+        )
+        full_target_intrinsics[:, :, v] = K
+
+    full_render_dict = _clone_render_dict(input_dict)
+    full_render_dict["target_intrinsics"] = full_target_intrinsics
+    full_render_dict["width"] = full_w
+    full_render_dict["height"] = full_h
+    return full_render_dict, camera_list, full_h, full_w
+
+
+def _load_fullres_gt_frames(scene_json, data_root, target_frame_indices, camera_list, full_h, full_w):
+    gt_frames = []
+    num_timesteps = scene_json["num_timesteps"]
+    for frame_idx in target_frame_indices:
+        frame_views = []
+        if 0 <= frame_idx < num_timesteps:
+            for cam in camera_list:
+                img_relative_path = scene_json["relative_image_path"][cam][frame_idx]
+                img_path = os.path.join(data_root, img_relative_path)
+                frame_views.append(np.array(Image.open(img_path).convert("RGB")))
+        else:
+            for _ in camera_list:
+                frame_views.append(np.zeros((full_h, full_w, 3), dtype=np.uint8))
+        gt_frames.append(frame_views)
+    return gt_frames
+
+
+def _denorm_rendered_images(x, device):
+    mean = torch.tensor(MEAN, device=device).view(1, 1, 1, 1, 3)
+    std = torch.tensor(STD, device=device).view(1, 1, 1, 1, 3)
+    x = (x.float() * std + mean).clamp(0.0, 1.0)
+    return x.permute(0, 1, 4, 2, 3)
+
+
+def _chw_to_uint8(x):
+    return (x.permute(1, 2, 0).float().cpu().numpy() * 255).astype(np.uint8)
 
 
 def render_chunked(model, gs_params, input_dict, chunk_size=20):
@@ -313,7 +380,6 @@ def main(args):
         # ---- Compute Gaussian scene representation (shared across renders) -----
         with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
             gs_params = model.get_gs_params(input_dict)
-            pred_dict = render_chunked(model, gs_params, input_dict)
 
         # ---- Save gs_params checkpoint ------------------------------------------
         ckpt_path = os.path.join(checkpoint_dir, f"gs_params_{i}.pth")
@@ -321,46 +387,66 @@ def main(args):
                     for k, v in gs_params.items()}, ckpt_path)
         logger.info(f"Saved gs_params to {ckpt_path}")
 
-        # ---- Video 1: original trajectory --------------------------------------
-        output_name = os.path.join(video_dir, f"test_{i}_original.mp4")
-        make_video(
-            dataset=None,
-            model=model,
-            device=device,
-            output_filename=output_name,
-            input_dict=input_dict,
-            target_dict=target_dict,
-            pred_dict=pred_dict,
+        # ---- Build full-resolution render targets -------------------------------
+        scene_id = int(data_dict["scene_id"])
+        scene_json = next((ann for ann in dataset.annotations if int(ann["scene_id"]) == scene_id), dataset.annotations[0])
+        full_render_dict, camera_list, full_h, full_w = _build_fullres_render_dict(
+            input_dict, scene_json, args.num_max_cameras, device
         )
-        logger.info(f"Saved video to {output_name}")
+        target_frame_indices = [int(x) for x in target_dict["target_frame_idx"][0].detach().cpu().tolist()]
+        gt_fullres = _load_fullres_gt_frames(
+            scene_json, args.data_root, target_frame_indices, camera_list, full_h, full_w
+        )
 
-        # ---- Video 2: elevated + tilted camera ---------------------------------
-        if args.render_elevated:
-            input_dict_elev = dict(input_dict)  # shallow copy; tensors shared
-            input_dict_elev["target_camtoworlds"] = elevate_camtoworlds(
-                input_dict["target_camtoworlds"],
-                height=args.elevated_height,
-                tilt_deg=args.elevated_tilt_deg,
-            )
+        fps = data_dict["fps"] if "fps" in data_dict else 10
+        T_tgt = len(target_frame_indices)
+        V = len(camera_list)
+
+        for v in range(V):
+            cam_render_dict = _clone_render_dict(full_render_dict)
+            cam_render_dict["target_camtoworlds"] = full_render_dict["target_camtoworlds"][:, :, v:v+1]
+            cam_render_dict["target_intrinsics"] = full_render_dict["target_intrinsics"][:, :, v:v+1]
+            if "target_time" in full_render_dict:
+                cam_render_dict["target_time"] = full_render_dict["target_time"][:, :, v:v+1]
+
             with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
-                pred_dict_elev = render_chunked(model, gs_params, input_dict_elev)
+                pred_dict = render_chunked(model, gs_params, cam_render_dict, chunk_size=1)
 
-            output_name_elev = os.path.join(
-                video_dir,
-                f"test_{i}_elevated_{args.elevated_height:.0f}m"
-                f"_{args.elevated_tilt_deg:.0f}deg.mp4",
-            )
-            make_video(
-                dataset=None,
-                model=model,
-                device=device,
-                output_filename=output_name_elev,
-                skip_plot_gt_depth_and_flow=True,
-                input_dict=input_dict_elev,
-                target_dict=target_dict,
-                pred_dict=pred_dict_elev,
-            )
-            logger.info(f"Saved elevated video to {output_name_elev}")
+            render_key = pred_dict["render_results"]["rgb_key"]
+            pred_images = _denorm_rendered_images(pred_dict["render_results"][render_key][0], device)
+            rgb_frames = [_chw_to_uint8(pred_images[t, 0]) for t in range(T_tgt)]
+            gt_frames = [gt_fullres[t][v] for t in range(T_tgt)]
+
+            gt_path = os.path.join(video_dir, f"seg{i:02d}_cam{v}_gt_rgb.mp4")
+            rgb_path = os.path.join(video_dir, f"seg{i:02d}_cam{v}_rgb.mp4")
+            imageio.mimwrite(gt_path, gt_frames, fps=fps, macro_block_size=None)
+            imageio.mimwrite(rgb_path, rgb_frames, fps=fps, macro_block_size=None)
+            del pred_dict, pred_images, rgb_frames
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+
+            if args.render_elevated:
+                cam_render_dict_elev = _clone_render_dict(cam_render_dict)
+                cam_render_dict_elev["target_camtoworlds"] = elevate_camtoworlds(
+                    cam_render_dict["target_camtoworlds"],
+                    height=args.elevated_height,
+                    tilt_deg=args.elevated_tilt_deg,
+                )
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+                with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
+                    pred_dict_elev = render_chunked(model, gs_params, cam_render_dict_elev, chunk_size=1)
+
+                elev_key = pred_dict_elev["render_results"]["rgb_key"]
+                elev_images = _denorm_rendered_images(pred_dict_elev["render_results"][elev_key][0], device)
+                elev_frames = [_chw_to_uint8(elev_images[t, 0]) for t in range(T_tgt)]
+                elev_path = os.path.join(video_dir, f"seg{i:02d}_cam{v}_novel_rgb.mp4")
+                imageio.mimwrite(elev_path, elev_frames, fps=fps, macro_block_size=None)
+                del pred_dict_elev, elev_images, elev_frames, cam_render_dict_elev
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+
+        logger.info(f"Saved gt_rgb / rgb / novel_rgb videos for segment {i} at {full_w}x{full_h}")
 
 
 if __name__ == "__main__":
